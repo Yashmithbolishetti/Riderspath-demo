@@ -4,6 +4,7 @@ import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { ToastContainer } from './components/Toast';
 import { StudentAuthModal } from './components/StudentAuthModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Pages
 import { HomePage } from './pages/HomePage';
@@ -31,22 +32,48 @@ import { AdminSettings } from './pages/Admin/AdminSettings';
 
 import { Bike, Booking } from './types';
 
+const getInitialView = (): string => {
+  if (typeof window === 'undefined') return 'home';
+  const hash = window.location.hash.replace(/^#\/?/, '').trim();
+  if (hash) {
+    return hash;
+  }
+  const lastPath = window.location.pathname.split('/').filter(Boolean).pop();
+  if (lastPath === 'admin') return 'admin';
+  return 'home';
+};
+
 const MainApp: React.FC = () => {
   const { isAdminLoggedIn, isStudentLoggedIn, openAuthModal } = useAuth();
 
-  // Navigation state
-  const [currentView, setCurrentView] = useState<string>('home');
+  // Navigation state with initial URL hash detection
+  const [currentView, setCurrentView] = useState<string>(getInitialView);
   const [selectedBikeId, setSelectedBikeId] = useState<string | null>(null);
   const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
 
   // Admin Sub-Tab
   const [adminTab, setAdminTab] = useState<string>('dashboard');
 
+  // Sync hash routing so back/forward and refresh maintain the exact view
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace(/^#\/?/, '').trim();
+      if (hash && hash !== currentView) {
+        setCurrentView(hash);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [currentView]);
+
   // Handle URL hash or back/forward if needed
   const handleNavigate = (view: string, params?: { bikeId?: string; booking?: Booking }) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     if (params?.bikeId) setSelectedBikeId(params.bikeId);
     if (params?.booking) setActiveBooking(params.booking);
+    if (window.location.hash !== `#${view}`) {
+      window.location.hash = `#${view}`;
+    }
     setCurrentView(view);
   };
 
@@ -200,8 +227,10 @@ const MainApp: React.FC = () => {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <MainApp />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <MainApp />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
